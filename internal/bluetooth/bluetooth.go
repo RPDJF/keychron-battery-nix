@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dolfbarr/keychron-battery/internal/cache"
+	"github.com/dolfbarr/keychron-battery/internal/drivers"
 	"github.com/dolfbarr/keychron-battery/internal/model"
 )
 
@@ -50,25 +51,23 @@ func ScanDevices() []model.Device {
 						rawName = strings.TrimSpace(mMatch[1])
 					}
 
-					isMouse := strings.Contains(rawName, "M") || strings.Contains(rawName, "Mouse")
+					driver := drivers.FindDriver(rawName, "")
 					devName := rawName
-					icon := "󰌌 "
-					if isMouse {
-						icon = "󰍽 "
-					}
-
 					isCharging := len(sMatch) > 1 && strings.Contains(strings.ToLower(sMatch[1]), "charging")
+
 					cache.Update(devName, pct, isCharging, "BT")
 
 					devices = append(devices, model.Device{
 						Name:        devName,
-						Icon:        icon,
+						Kind:        driver.Kind(),
+						Icon:        driver.Icon(),
 						Type:        "󰂯  BT",
 						Battery:     &pct,
 						Charging:    isCharging,
 						Estimated:   false,
 						SinceCharge: cache.GetSinceChargeString(devName, isCharging),
 						Signal:      "󰂯  Connected",
+						ModelFamily: driver.ID(),
 					})
 				}
 			}

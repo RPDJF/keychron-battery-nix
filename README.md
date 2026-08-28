@@ -133,6 +133,49 @@ keychron-battery --watch 2
 
 ---
 
+## Architecture & Extension Guide
+
+```mermaid
+graph TD
+    subgraph "Hardware Discovery Layer"
+        USB["USB Sysfs Enumerator (/sys/bus/usb)"]
+        BT["Bluetooth / UPower Scanner"]
+        HID["Linux hidraw IOCTL Layer"]
+    end
+
+    subgraph "Pluggable Dongle Adapters (internal/dongles)"
+        D_LINK["KeychronLinkAdapter (3434:d030 / 3434:d031)"]
+        D_VIAL["CustomVialAdapter (DIY / Vial 2.4G Receivers)"]
+        D_GEN["GenericRFAdapter"]
+    end
+
+    subgraph "Pluggable Model Drivers (internal/drivers)"
+        DRV_MAX["MaxSeriesDriver (K/Q/V Max, Lemokey)"]
+        DRV_M["MSeriesDriver (M1 - M7 Mice)"]
+        DRV_PRO["ProSeriesDriver (K/Q/V Pro)"]
+        DRV_K["StandardKSeriesDriver (K2, K3, K8)"]
+        DRV_GEN["GenericDriver (Fallback)"]
+    end
+
+    USB --> D_LINK & D_VIAL & D_GEN
+    USB --> DRV_MAX & DRV_M & DRV_PRO & DRV_K & DRV_GEN
+    BT --> DRV_MAX & DRV_M & DRV_PRO & DRV_K
+```
+
+### Adding Support for New Dongles or Custom Hardware
+Adding support for a new 2.4GHz receiver (e.g. for Pro or K series keyboards flashed with wireless dongles) requires implementing only the `DongleAdapter` interface:
+
+```go
+type MyCustomDongleAdapter struct{}
+
+func (a *MyCustomDongleAdapter) ID() string { return "my_dongle" }
+func (a *MyCustomDongleAdapter) Matches(product, pid string) bool { ... }
+func (a *MyCustomDongleAdapter) ProbeCarrier(nodes []string) (string, bool) { ... }
+```
+And registering it via `dongles.Register(&MyCustomDongleAdapter{})`.
+
+---
+
 ## Reverse-Engineered HID Protocol
 
 ```mermaid

@@ -4,29 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
-	"time"
-	"unsafe"
 
 	"github.com/dolfbarr/keychron-battery/internal/cache"
+	"github.com/dolfbarr/keychron-battery/internal/dongles"
+	"github.com/dolfbarr/keychron-battery/internal/drivers"
 	"github.com/dolfbarr/keychron-battery/internal/model"
 )
-
-const (
-	KeychronVendorID = "3434"
-)
-
-func ioc(dir, typeCode, nr, size uintptr) uintptr {
-	return (dir << 30) | (typeCode << 8) | nr | (size << 16)
-}
-
-func hidiocsfeat(length uintptr) uintptr {
-	return ioc(3, uintptr('H'), 0x06, length)
-}
-
-func hidiocgfeat(length uintptr) uintptr {
-	return ioc(3, uintptr('H'), 0x07, length)
-}
 
 // USBDevice represents a top-level Keychron USB device.
 type USBDevice struct {
@@ -106,60 +89,7 @@ func ScanUSBDevices() []USBDevice {
 	return devices
 }
 
-// ProbeFeatureBattery reads Keychron vendor Feature Reports 0x51/0x52 for battery % and charging status.
-func ProbeFeatureBattery(devPath string) (int, bool, bool) {
-	fd, err := syscall.Open(devPath, syscall.O_RDWR, 0)
-	if err != nil {
-		return 0, false, false
-	}
-	defer syscall.Close(fd)
-
-	for _, repID := range []byte{0x51, 0x52, 0x53} {
-		buf := make([]byte, 21)
-		buf[0] = repID
-		req := hidiocgfeat(uintptr(len(buf)))
-		_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), req, uintptr(unsafe.Pointer(&buf[0])))
-		if errno == 0 && (buf[1] > 0 || buf[2] > 0 || buf[4] > 0) {
-			pct := int(buf[1])
-			if pct >= 1 && pct <= 100 {
-				isCharging := len(buf) > 4 && buf[4] == 1
-				return pct, isCharging, true
-			}
-		}
-	}
-	return 0, false, false
-}
-
-// ProbeDongleLinkQuality queries the 2.4GHz dongle for RF link carrier status via Report 0x54.
-func ProbeDongleLinkQuality(devPath string) (string, bool) {
-	fd, err := syscall.Open(devPath, syscall.O_RDWR|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return "󰤨  100%", false
-	}
-	defer syscall.Close(fd)
-
-	buf := make([]byte, 21)
-	buf[0] = 0x51
-	buf[1] = 0x01
-	setReq := hidiocsfeat(uintptr(len(buf)))
-	_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), setReq, uintptr(unsafe.Pointer(&buf[0])))
-
-	out := make([]byte, 33)
-	out[0] = 0xB2
-	out[1] = 0x01
-	_, _ = syscall.Write(fd, out)
-
-	time.Sleep(20 * time.Millisecond)
-
-	resp := make([]byte, 64)
-	n, _ := syscall.Read(fd, resp)
-	if n >= 3 && resp[0] == 0x54 {
-		return "󰤨  100%", true
-	}
-	return "󰤨  100%", true
-}
-
-// DetectDevices scans USB devices and decodes live/cached peripherals.
+// DetectDevices scans USB devices and delegates decoding to pluggable drivers & dongle adapters.
 func DetectDevices() []model.Device {
 	var results []model.Device
 	usbDevs := ScanUSBDevices()
@@ -168,86 +98,77 @@ func DetectDevices() []model.Device {
 	hasWiredMouse := false
 	hasWiredKb := false
 
-	// Find known cached names
 	cachedKbName := "Keychron K3 Max"
 	cachedMouseName := "Keychron M6"
-	for name := range cachedStates {
-		if strings.Contains(name, "M") || strings.Contains(name, "Mouse") {
+	for name, state := range cachedStates {
+		if strings.Contains(name, "M") || strings.Contains(name, "Mouse") || state.ModelFamily == "m_series" {
 			cachedMouseName = name
 		} else if strings.Contains(name, "K") || strings.Contains(name, "Q") || strings.Contains(name, "V") || strings.Contains(name, "Lemokey") {
 			cachedKbName = name
 		}
 	}
 
-	// 1. Direct wired USB devices
+	// 1. Process direct USB connected devices using drivers
 	for _, dev := range usbDevs {
-		isLink := strings.Contains(dev.Product, "Link") || dev.ProductID == "d030" || dev.ProductID == "d031"
-		if isLink {
+		dongleAdapter := dongles.FindAdapter(dev.Product, dev.ProductID)
+		if dongleAdapter != nil {
 			continue
 		}
 
-		isMouse := strings.Contains(dev.Product, "M") || strings.Contains(dev.Product, "Mouse") || dev.ProductID == "d03f"
+		driver := drivers.FindDriver(dev.Product, dev.ProductID)
 		devName := dev.Product
 		if devName == "" || devName == "Keychron Device" {
-			if isMouse {
+			if driver.Kind() == model.KindMouse {
 				devName = cachedMouseName
 			} else {
 				devName = cachedKbName
 			}
 		}
 
-		icon := "󰌌 "
-		if isMouse {
-			icon = "󰍽 "
+		if driver.Kind() == model.KindMouse {
 			hasWiredMouse = true
 			cachedMouseName = devName
-		} else {
+		} else if driver.Kind() == model.KindKeyboard {
 			hasWiredKb = true
 			cachedKbName = devName
 		}
 
 		battPct := 100
 		isCharging := true
-		for _, node := range dev.Nodes {
-			if pct, chg, ok := ProbeFeatureBattery(node); ok {
-				battPct = pct
-				isCharging = chg
-				break
-			}
+		if pct, chg, ok := driver.ProbeBattery(dev.Nodes); ok {
+			battPct = pct
+			isCharging = chg
 		}
 
 		cache.Update(devName, battPct, isCharging, "USB")
 
 		results = append(results, model.Device{
 			Name:        devName,
-			Icon:        icon,
+			Kind:        driver.Kind(),
+			Icon:        driver.Icon(),
 			Type:        "󰒋  USB",
 			Battery:     &battPct,
 			Charging:    isCharging,
 			Estimated:   false,
 			SinceCharge: cache.GetSinceChargeString(devName, isCharging),
 			Signal:      "󰒋  Wired",
+			ModelFamily: driver.ID(),
 		})
 	}
 
-	// 2. 2.4GHz Dongles
+	// 2. Process 2.4GHz Dongles using pluggable dongle adapters
 	dongleCount := 0
 	for _, dev := range usbDevs {
-		isLink := strings.Contains(dev.Product, "Link") || dev.ProductID == "d030" || dev.ProductID == "d031"
-		if !isLink {
+		dongleAdapter := dongles.FindAdapter(dev.Product, dev.ProductID)
+		if dongleAdapter == nil {
 			continue
 		}
 
 		dongleCount++
-		signalStr := "󰤨  100%"
-		for _, node := range dev.Nodes {
-			if sig, ok := ProbeDongleLinkQuality(node); ok {
-				signalStr = sig
-				break
-			}
-		}
+		signalStr, _ := dongleAdapter.ProbeCarrier(dev.Nodes)
 
 		if dongleCount == 1 && !hasWiredKb {
+			kbDriver := drivers.FindDriver(cachedKbName, "")
 			devName := cachedKbName
 			var battPtr *int
 			isEst := false
@@ -262,15 +183,18 @@ func DetectDevices() []model.Device {
 
 			results = append(results, model.Device{
 				Name:        devName,
-				Icon:        "󰌌 ",
+				Kind:        model.KindKeyboard,
+				Icon:        kbDriver.Icon(),
 				Type:        "󰖩  2.4G",
 				Battery:     battPtr,
 				Charging:    false,
 				Estimated:   isEst,
 				SinceCharge: cache.GetSinceChargeString(devName, false),
 				Signal:      signalStr,
+				ModelFamily: kbDriver.ID(),
 			})
 		} else if dongleCount == 2 && !hasWiredMouse {
+			mouseDriver := drivers.FindDriver(cachedMouseName, "")
 			devName := cachedMouseName
 			var battPtr *int
 			isEst := false
@@ -285,13 +209,15 @@ func DetectDevices() []model.Device {
 
 			results = append(results, model.Device{
 				Name:        devName,
-				Icon:        "󰍽 ",
+				Kind:        model.KindMouse,
+				Icon:        mouseDriver.Icon(),
 				Type:        "󰖩  2.4G",
 				Battery:     battPtr,
 				Charging:    false,
 				Estimated:   isEst,
 				SinceCharge: cache.GetSinceChargeString(devName, false),
 				Signal:      signalStr,
+				ModelFamily: mouseDriver.ID(),
 			})
 		}
 	}
