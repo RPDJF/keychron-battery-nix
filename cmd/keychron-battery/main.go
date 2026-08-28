@@ -68,7 +68,7 @@ func main() {
 		devices := getCombinedDevices()
 
 		if *notifyFlag {
-			render.SendNotification(devices)
+			render.SendStatusSummaryNotification(devices)
 			if *watchFlag == 0 {
 				break
 			}

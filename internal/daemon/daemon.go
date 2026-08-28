@@ -14,6 +14,8 @@ import (
 	"github.com/dolfbarr/keychron-battery/internal/render"
 )
 
+var notifiedDevices = make(map[string]bool)
+
 // Run starts the background monitoring daemon.
 func Run(interval time.Duration) {
 	log.Printf("Starting Keychron Battery Daemon (interval: %v)...", interval)
@@ -43,13 +45,10 @@ func Run(interval time.Duration) {
 	}
 }
 
-var lastLowBatteryNotified = false
-
 func pollAndNotify() {
 	devices := hid.DetectDevices()
 	btDevices := bluetooth.ScanDevices()
 
-	// Deduplicate Bluetooth vs USB
 	for _, bt := range btDevices {
 		found := false
 		for _, d := range devices {
@@ -63,45 +62,30 @@ func pollAndNotify() {
 		}
 	}
 
-	hasLowBattery := false
 	for _, d := range devices {
 		if d.Battery != nil && *d.Battery <= 20 && !d.Charging {
-			hasLowBattery = true
-			break
+			if !notifiedDevices[d.Name] {
+				render.SendDeviceLowBatteryNotification(d)
+				notifiedDevices[d.Name] = true
+				log.Printf("Triggered low-battery notification for %s (%d%%)", d.Name, *d.Battery)
+			}
+		} else if d.Battery != nil && (*d.Battery > 20 || d.Charging) {
+			notifiedDevices[d.Name] = false
 		}
-	}
-
-	if hasLowBattery && !lastLowBatteryNotified {
-		render.SendNotification(devices)
-		lastLowBatteryNotified = true
-	} else if !hasLowBattery {
-		lastLowBatteryNotified = false
 	}
 }
 
 // TriggerTestAlert executes the exact daemon notification pipeline with a simulated low-battery event.
 func TriggerTestAlert() {
 	lowPct := 15
-	fullPct := 100
-	mockDevices := []model.Device{
-		{
-			Name:      "Keychron M6",
-			Icon:      "󰍽 ",
-			Type:      "󰖩  2.4G",
-			Battery:   &lowPct,
-			Charging:  false,
-			Estimated: true,
-			Signal:    "󰤨  100%",
-		},
-		{
-			Name:      "Keychron K3 Max",
-			Icon:      "󰌌 ",
-			Type:      "󰖩  2.4G",
-			Battery:   &fullPct,
-			Charging:  false,
-			Estimated: true,
-			Signal:    "󰤨  100%",
-		},
+	mockMouse := model.Device{
+		Name:      "Keychron M6",
+		Icon:      "󰍽 ",
+		Type:      "󰖩  2.4G",
+		Battery:   &lowPct,
+		Charging:  false,
+		Estimated: true,
+		Signal:    "󰤨  100%",
 	}
-	render.SendNotification(mockDevices)
+	render.SendDeviceLowBatteryNotification(mockMouse)
 }
