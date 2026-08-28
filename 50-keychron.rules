@@ -1,0 +1,4 @@
+# Keychron WebHID and Raw HID non-root access rules
+# Grants the active desktop user access to Keychron vendor hidraw endpoints
+KERNEL=="hidraw*", ATTRS{idVendor}=="3434", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3434", MODE="0666", TAG+="uaccess"

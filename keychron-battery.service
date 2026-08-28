@@ -1,0 +1,13 @@
+[Unit]
+Description=Keychron Battery & Peripheral Monitor Daemon
+Documentation=https://github.com/dolfbarr/keychron-battery
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/keychron-battery --daemon --interval 30
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
