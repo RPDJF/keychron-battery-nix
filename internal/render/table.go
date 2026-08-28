@@ -104,7 +104,15 @@ func RenderBorderless(devices []model.Device) {
 		}
 		battCol := PadRight(battStyled, 24)
 
-		// 3. Signal column
+		// 3. Since Charge / Uptime column
+		durColor := "\033[36m" // Cyan
+		if strings.Contains(dev.SinceCharge, "Charging") {
+			durColor = "\033[33m" // Yellow for charging
+		}
+		durStyled := fmt.Sprintf("%s%s\033[0m", durColor, dev.SinceCharge)
+		durCol := PadRight(durStyled, 16)
+
+		// 4. Signal column
 		sigColor := "\033[32m"
 		if strings.Contains(dev.Signal, "Wired") {
 			sigColor = "\033[90m"
@@ -112,18 +120,18 @@ func RenderBorderless(devices []model.Device) {
 		sigStyled := fmt.Sprintf("%s%s\033[0m", sigColor, dev.Signal)
 		sigCol := PadRight(sigStyled, 14)
 
-		// 4. Mode column
+		// 5. Mode column
 		modeCol := fmt.Sprintf("\033[90m%s\033[0m", dev.Type)
 
-		fmt.Printf("%s%s%s%s\n", devCol, battCol, sigCol, modeCol)
+		fmt.Printf("%s%s%s%s%s\n", devCol, battCol, durCol, sigCol, modeCol)
 	}
 }
 
 // RenderTable outputs formatted table with rounded borders.
 func RenderTable(devices []model.Device) {
-	fmt.Println("╭────────────────────┬──────────┬─────────┬─────────╮")
-	fmt.Println("│ DEVICE             │ BATTERY  │ SIGNAL  │ MODE    │")
-	fmt.Println("├────────────────────┼──────────┼─────────┼─────────┤")
+	fmt.Println("╭────────────────────┬──────────┬────────────────┬─────────┬─────────╮")
+	fmt.Println("│ DEVICE             │ BATTERY  │ SINCE CHARGE   │ SIGNAL  │ MODE    │")
+	fmt.Println("├────────────────────┼──────────┼────────────────┼─────────┼─────────┤")
 	for _, dev := range devices {
 		devStr := fmt.Sprintf("%s %s", dev.Icon, dev.Name)
 		battStr := "● Active"
@@ -133,7 +141,7 @@ func RenderTable(devices []model.Device) {
 			bIcon := GetBatteryIcon(pct, dev.Charging)
 			battStr = fmt.Sprintf("%3d%% %s%s", pct, bIcon, bar)
 		}
-		fmt.Printf("│ %-18s │ %-8s │ %-7s │ %-7s │\n", devStr, battStr, dev.Signal, dev.Type)
+		fmt.Printf("│ %-18s │ %-8s │ %-14s │ %-7s │ %-7s │\n", devStr, battStr, dev.SinceCharge, dev.Signal, dev.Type)
 	}
-	fmt.Println("╰────────────────────┴──────────┴─────────┴─────────╯")
+	fmt.Println("╰────────────────────┴──────────┴────────────────┴─────────┴─────────╯")
 }

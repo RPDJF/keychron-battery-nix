@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -40,14 +41,69 @@ func Save(cache map[string]model.CachedState) error {
 	return os.WriteFile(defaultCachePath, data, 0644)
 }
 
+// FormatDuration formats seconds into progressive human-readable format.
+func FormatDuration(seconds int64) string {
+	if seconds < 60 {
+		return "Just now"
+	}
+	minutes := seconds / 60
+	hours := minutes / 60
+	days := hours / 24
+
+	if days > 0 {
+		remHours := hours % 24
+		return fmt.Sprintf("%dd %dh", days, remHours)
+	}
+	if hours > 0 {
+		remMins := minutes % 60
+		return fmt.Sprintf("%dh %dm", hours, remMins)
+	}
+	return fmt.Sprintf("%dm", minutes)
+}
+
 // Update saves a device's battery state to the cache.
 func Update(name string, battery int, charging bool, mode string) {
 	cache := Load()
+	now := time.Now().Unix()
+
+	existing, exists := cache[name]
+	lastCharged := now
+	if exists && existing.LastChargedAt > 0 {
+		lastCharged = existing.LastChargedAt
+	}
+
+	// If transitioning from charging to discharging, set lastCharged to now
+	if exists && existing.Charging && !charging {
+		lastCharged = now
+	} else if charging {
+		lastCharged = now
+	}
+
 	cache[name] = model.CachedState{
-		Battery:   battery,
-		Charging:  charging,
-		UpdatedAt: time.Now().Unix(),
-		Mode:      mode,
+		Battery:       battery,
+		Charging:      charging,
+		UpdatedAt:     now,
+		LastChargedAt: lastCharged,
+		Mode:          mode,
 	}
 	_ = Save(cache)
+}
+
+// GetSinceChargeString computes the formatted duration since last charge.
+func GetSinceChargeString(name string, isCharging bool) string {
+	if isCharging {
+		return "⚡ Charging"
+	}
+
+	cache := Load()
+	state, exists := cache[name]
+	if !exists || state.LastChargedAt == 0 {
+		return "󱎫  Active"
+	}
+
+	elapsed := time.Now().Unix() - state.LastChargedAt
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return fmt.Sprintf("󱎫  %s", FormatDuration(elapsed))
 }

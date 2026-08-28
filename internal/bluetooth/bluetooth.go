@@ -62,13 +62,14 @@ func ScanDevices() []model.Device {
 					cache.Update(devName, pct, isCharging, "BT")
 
 					devices = append(devices, model.Device{
-						Name:      devName,
-						Icon:      icon,
-						Type:      "󰂯  BT",
-						Battery:   &pct,
-						Charging:  isCharging,
-						Estimated: false,
-						Signal:    "󰂯  Connected",
+						Name:        devName,
+						Icon:        icon,
+						Type:        "󰂯  BT",
+						Battery:     &pct,
+						Charging:    isCharging,
+						Estimated:   false,
+						SinceCharge: cache.GetSinceChargeString(devName, isCharging),
+						Signal:      "󰂯  Connected",
 					})
 				}
 			}

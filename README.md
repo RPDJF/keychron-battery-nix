@@ -11,8 +11,8 @@ Written in pure Go with direct Linux kernel `hidraw` IOCTL support—zero runtim
 ---
 
 ```text
-󰌌  Keychron K3 Max     100% 󰁹  ██████████     󰤨  100%      󰖩  2.4G
-󰍽  Keychron M6          98% 󰁹  █████████░     󰤨  100%      󰖩  2.4G
+󰌌  Keychron K3 Max     100% 󰁹  ██████████     󱎫  5h 30m      󰤨  100%      󰖩  2.4G
+󰍽  Keychron M6          98% 󰁹  █████████░     󱎫  2h 15m      󰤨  100%      󰖩  2.4G
 ```
 
 ---
@@ -20,6 +20,7 @@ Written in pure Go with direct Linux kernel `hidraw` IOCTL support—zero runtim
 ## Features
 
 * **⚡ Native Linux IOCTL**: Directly decodes Keychron vendor Feature Reports (`0x51` / `0x52`) via kernel `HIDIOCGFEAT` to extract real-time battery percentages and charging states.
+* **⏱️ Battery Duration / Uptime Tracking**: Tracks elapsed operational runtime since the last full charge (`󱎫  2h 15m`, `1d 4h`, `⚡ Charging`).
 * **📡 2.4GHz Link RF Carrier Telemetry**: Interrogates Keychron 2.4GHz Link receivers (`3434:d030`) via Report `0x54` queries for RF channel status and connection link quality.
 * **💾 Battery State Persistence**: Automatically caches the last verified battery state (`~/.cache/keychron/battery_cache.json`) when transitioning between USB cable, Bluetooth, and 2.4GHz wireless modes.
 * **🎨 Clean Nerd Font CLI**: Clean, borderless table view with 2-cell Nerd Font width alignment and color-coded status badges.

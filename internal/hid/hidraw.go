@@ -54,7 +54,6 @@ func GetParentUSBPath(hidrawPath string) string {
 func ScanUSBDevices() []USBDevice {
 	var devices []USBDevice
 
-	// 1. Scan USB sysfs
 	matches, _ := filepath.Glob("/sys/bus/usb/devices/*/uevent")
 	for _, uevent := range matches {
 		dir := filepath.Dir(uevent)
@@ -88,7 +87,6 @@ func ScanUSBDevices() []USBDevice {
 		}
 	}
 
-	// 2. Map hidraw nodes to parent USB devices
 	hidrawMatches, _ := filepath.Glob("/sys/class/hidraw/hidraw*")
 	for _, h := range hidrawMatches {
 		parent := GetParentUSBPath(h)
@@ -140,14 +138,12 @@ func ProbeDongleLinkQuality(devPath string) (string, bool) {
 	}
 	defer syscall.Close(fd)
 
-	// Step 1: Send Set Feature 0x51
 	buf := make([]byte, 21)
 	buf[0] = 0x51
 	buf[1] = 0x01
 	setReq := hidiocsfeat(uintptr(len(buf)))
 	_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), setReq, uintptr(unsafe.Pointer(&buf[0])))
 
-	// Step 2: Send Output Report 0xB2
 	out := make([]byte, 33)
 	out[0] = 0xB2
 	out[1] = 0x01
@@ -203,13 +199,14 @@ func DetectDevices() []model.Device {
 		cache.Update(devName, battPct, isCharging, "USB")
 
 		results = append(results, model.Device{
-			Name:      devName,
-			Icon:      icon,
-			Type:      "󰒋  USB",
-			Battery:   &battPct,
-			Charging:  isCharging,
-			Estimated: false,
-			Signal:    "󰒋  Wired",
+			Name:        devName,
+			Icon:        icon,
+			Type:        "󰒋  USB",
+			Battery:     &battPct,
+			Charging:    isCharging,
+			Estimated:   false,
+			SinceCharge: cache.GetSinceChargeString(devName, isCharging),
+			Signal:      "󰒋  Wired",
 		})
 	}
 
@@ -244,13 +241,14 @@ func DetectDevices() []model.Device {
 			}
 
 			results = append(results, model.Device{
-				Name:      devName,
-				Icon:      "󰌌 ",
-				Type:      "󰖩  2.4G",
-				Battery:   battPtr,
-				Charging:  false,
-				Estimated: isEst,
-				Signal:    signalStr,
+				Name:        devName,
+				Icon:        "󰌌 ",
+				Type:        "󰖩  2.4G",
+				Battery:     battPtr,
+				Charging:    false,
+				Estimated:   isEst,
+				SinceCharge: cache.GetSinceChargeString(devName, false),
+				Signal:      signalStr,
 			})
 		} else if dongleCount == 2 && !hasWiredMouse {
 			devName := "Keychron M6"
@@ -266,13 +264,14 @@ func DetectDevices() []model.Device {
 			}
 
 			results = append(results, model.Device{
-				Name:      devName,
-				Icon:      "󰍽 ",
-				Type:      "󰖩  2.4G",
-				Battery:   battPtr,
-				Charging:  false,
-				Estimated: isEst,
-				Signal:    signalStr,
+				Name:        devName,
+				Icon:        "󰍽 ",
+				Type:        "󰖩  2.4G",
+				Battery:     battPtr,
+				Charging:    false,
+				Estimated:   isEst,
+				SinceCharge: cache.GetSinceChargeString(devName, false),
+				Signal:      signalStr,
 			})
 		}
 	}
