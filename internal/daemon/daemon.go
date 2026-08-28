@@ -10,6 +10,7 @@ import (
 
 	"github.com/dolfbarr/keychron-battery/internal/bluetooth"
 	"github.com/dolfbarr/keychron-battery/internal/hid"
+	"github.com/dolfbarr/keychron-battery/internal/model"
 	"github.com/dolfbarr/keychron-battery/internal/render"
 )
 
@@ -76,4 +77,31 @@ func pollAndNotify() {
 	} else if !hasLowBattery {
 		lastLowBatteryNotified = false
 	}
+}
+
+// TriggerTestAlert executes the exact daemon notification pipeline with a simulated low-battery event.
+func TriggerTestAlert() {
+	lowPct := 15
+	fullPct := 100
+	mockDevices := []model.Device{
+		{
+			Name:      "Keychron M6",
+			Icon:      "󰍽 ",
+			Type:      "󰖩  2.4G",
+			Battery:   &lowPct,
+			Charging:  false,
+			Estimated: true,
+			Signal:    "󰤨  100%",
+		},
+		{
+			Name:      "Keychron K3 Max",
+			Icon:      "󰌌 ",
+			Type:      "󰖩  2.4G",
+			Battery:   &fullPct,
+			Charging:  false,
+			Estimated: true,
+			Signal:    "󰤨  100%",
+		},
+	}
+	render.SendNotification(mockDevices)
 }

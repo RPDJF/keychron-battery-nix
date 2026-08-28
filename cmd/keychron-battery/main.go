@@ -40,6 +40,7 @@ func getCombinedDevices() []model.Device {
 func main() {
 	jsonFlag := flag.Bool("json", false, "Output results in JSON format")
 	notifyFlag := flag.Bool("notify", false, "Send desktop notification via notify-send")
+	testAlertFlag := flag.Bool("test-alert", false, "Simulate daemon low-battery alert notification")
 	watchFlag := flag.Int("watch", 0, "Continuous watch mode with refresh interval in seconds")
 	tableFlag := flag.Bool("table", false, "Render as a table with rounded borders")
 	daemonFlag := flag.Bool("daemon", false, "Run as background monitoring daemon")
@@ -50,6 +51,11 @@ func main() {
 
 	if *versionFlag {
 		fmt.Printf("keychron-battery v%s (%s)\n", Version, BuildDate)
+		return
+	}
+
+	if *testAlertFlag {
+		daemon.TriggerTestAlert()
 		return
 	}
 
