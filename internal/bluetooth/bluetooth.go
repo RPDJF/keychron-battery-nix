@@ -45,16 +45,15 @@ func ScanDevices() []model.Device {
 
 				if len(pMatch) > 1 {
 					pct, _ := strconv.Atoi(pMatch[1])
-					rawName := "Keychron Peripheral"
+					rawName := "Keychron Device"
 					if len(mMatch) > 1 {
 						rawName = strings.TrimSpace(mMatch[1])
 					}
 
 					isMouse := strings.Contains(rawName, "M") || strings.Contains(rawName, "Mouse")
-					devName := "Keychron K3 Max"
+					devName := rawName
 					icon := "󰌌 "
 					if isMouse {
-						devName = "Keychron M6"
 						icon = "󰍽 "
 					}
 

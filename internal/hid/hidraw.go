@@ -168,6 +168,17 @@ func DetectDevices() []model.Device {
 	hasWiredMouse := false
 	hasWiredKb := false
 
+	// Find known cached names
+	cachedKbName := "Keychron K3 Max"
+	cachedMouseName := "Keychron M6"
+	for name := range cachedStates {
+		if strings.Contains(name, "M") || strings.Contains(name, "Mouse") {
+			cachedMouseName = name
+		} else if strings.Contains(name, "K") || strings.Contains(name, "Q") || strings.Contains(name, "V") || strings.Contains(name, "Lemokey") {
+			cachedKbName = name
+		}
+	}
+
 	// 1. Direct wired USB devices
 	for _, dev := range usbDevs {
 		isLink := strings.Contains(dev.Product, "Link") || dev.ProductID == "d030" || dev.ProductID == "d031"
@@ -176,14 +187,23 @@ func DetectDevices() []model.Device {
 		}
 
 		isMouse := strings.Contains(dev.Product, "M") || strings.Contains(dev.Product, "Mouse") || dev.ProductID == "d03f"
-		devName := "Keychron K3 Max"
+		devName := dev.Product
+		if devName == "" || devName == "Keychron Device" {
+			if isMouse {
+				devName = cachedMouseName
+			} else {
+				devName = cachedKbName
+			}
+		}
+
 		icon := "󰌌 "
 		if isMouse {
-			devName = "Keychron M6"
 			icon = "󰍽 "
 			hasWiredMouse = true
+			cachedMouseName = devName
 		} else {
 			hasWiredKb = true
+			cachedKbName = devName
 		}
 
 		battPct := 100
@@ -228,7 +248,7 @@ func DetectDevices() []model.Device {
 		}
 
 		if dongleCount == 1 && !hasWiredKb {
-			devName := "Keychron K3 Max"
+			devName := cachedKbName
 			var battPtr *int
 			isEst := false
 			if c, ok := cachedStates[devName]; ok {
@@ -251,7 +271,7 @@ func DetectDevices() []model.Device {
 				Signal:      signalStr,
 			})
 		} else if dongleCount == 2 && !hasWiredMouse {
-			devName := "Keychron M6"
+			devName := cachedMouseName
 			var battPtr *int
 			isEst := false
 			if c, ok := cachedStates[devName]; ok {
